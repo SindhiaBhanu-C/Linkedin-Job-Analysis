@@ -1,0 +1,171 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+```
+
+```{r}
+joblist <- read_excel("job_listing_data.xlsx", sheet = 1)
+summary(joblist)
+```
+
+```{r}
+#cleaning the Joblist data 
+joblist_cleaned <- joblist
+#Replacing Na's of columns views, applies, remote_allowed with 0
+joblist_cleaned$views[is.na(joblist$views)] <- 0
+joblist_cleaned$applies[is.na(joblist_cleaned$applies)] <- 0
+joblist_cleaned$remote_allowed[is.na(joblist_cleaned$remote_allowed)] <- 0
+summary(joblist_cleaned)
+
+```
+
+```{r}
+#Replacing NA's of columns 
+#Replacing for single column
+joblist_cleaned$pay_period[is.na(joblist_cleaned$pay_period)] <- "NOT-GIVEN"
+# Replacing for multiple columns at a time
+joblist_cleaned <- joblist_cleaned %>%
+  mutate(across(c("formatted_work_type", "application_type", "formatted_experience_level","currency"), ~ replace(., is.na(.),"NOT-GIVEN")))
+#Delete a row 
+joblist_cleaned <- joblist_cleaned %>% drop_na(company_name)
+```
+
+```{r}
+# Convert columns with respective names to factor type columns 
+joblist_cleaned[,c("pay_period", "formatted_work_type", "work_type", "application_type", "formatted_experience_level", "currency")] <- lapply(joblist_cleaned[,c("pay_period", "formatted_work_type", "work_type", "application_type", "formatted_experience_level","currency")], factor)
+summary(joblist_cleaned)
+```
+
+```{r}
+#Coverting 0,1 as Yes or No
+joblist_cleaned <- joblist_cleaned %>% mutate(remote_allowed = as.factor(ifelse(remote_allowed == 1 , "Yes", "No")))
+
+```
+
+```{r}
+library(tm)
+library(stringr)
+```
+
+```{r}
+# Load the skill words list from an Excel file
+skillwordsExcel <- read_excel("skillsetwords.xlsx", sheet = 1)
+skillwordsExcel$Skills <- tolower(skillwordsExcel$Skills)
+skill_data <- skillwordsExcel$Skills
+#skill_data
+```
+
+```{r}
+process_description <- function(description,skill_data){
+   # Convert paragraph to lowercase and split into words (remove non-word characters)
+  words_in_description <- str_to_lower(str_split(description, "[[:punct:], ]")[[1]])
+   # Remove any empty words after splitting
+  words_in_description <- words_in_description[words_in_description != ""]
+   # Find matching skill words
+  filtered_words <- intersect(words_in_description, skill_data)
+   # Return both the list of all words and the filtered skill words
+  list(
+    all_words = paste(words_in_description, collapse = ", "),   # All words from the paragraph
+    filtered = paste(filtered_words, collapse = ", ")         # Skill words that match
+  )
+}
+```
+
+```{r}
+process_description_reverse <- function(description,skill_data){
+  description <- str_to_lower(description)
+  
+  skill_data_present <- sapply(skill_data, function(word) grepl(word, description, fixed=TRUE))
+  
+  paste(skill_data[skill_data_present], collapse = ", ")         # Skill words that match
+}
+```
+
+
+```{r}
+# Apply the function to each row of the dataset
+joblist_cleaned <- joblist_cleaned %>%
+  rowwise() %>%
+  mutate(
+    # Create the 'all_words' column with all words from the paragraph
+    all_words = process_description(paste(description,skills_desc), skill_data)$all_words,
+    
+    # Create the 'filtered_words' column with only matching skill words
+    filtered_words = process_description(paste(description,skills_desc), skill_data)$filtered,
+    
+    #skill words from skill data only
+    skill_words_only = process_description_reverse(paste(description,skills_desc), skill_data)
+  )
+```
+
+```{r}
+#To create a new CSV file using joblist_cleaned data
+# write.csv(joblist_cleaned, "NewjobList_data.csv", row.names = FALSE)
+```
+
+
+```{r}
+JobTitles <- read_excel("job_title.xlsx", sheet = 1)
+JobTitles[is.na(JobTitles)] <- ""
+JobTitles[] <- lapply(JobTitles, tolower)
+JobTitles
+```
+
+```{r}
+# Define a function to check if value contains any value from JobTitles
+check_similarity <- function(value, JobTitles) {
+  # Use grepl to check if value is present in any value from each column in JobTitles
+  matched_columns <- sapply(JobTitles, function(col) any(grepl(tolower(value), col, fixed=TRUE)))
+  
+  # Return column names where match was found
+  paste(names(matched_columns)[matched_columns], collapse = ", ")
+}
+```
+
+
+
+```{r}
+# Define a function to check if words in value contains any value from JobTitles
+check_similarity_by_word <- function(value, JobTitles) {
+  words_in_value <- str_split(value, "\\W+")[[1]]
+  words_in_value <- words_in_value[words_in_value != ""]
+  # Use grepl to check if value is present in any value from each column in JobTitles
+  matched_columns <- sapply(
+    JobTitles,
+    function(col) any(
+      sapply(
+        words_in_value,
+        function(word) any(grepl(tolower(word), col, fixed=TRUE))
+        )
+      )
+    )
+  
+  # Return column names where match was found
+  paste(names(matched_columns)[matched_columns], collapse = ", ")
+}
+```
+
+
+```{r}
+joblist_cleaned <- joblist_cleaned %>%
+  rowwise() %>%
+  mutate(
+    # Create the 'job sector' column with matching Sector from JobTitles
+    Job_Sector_exact = check_similarity(title, JobTitles),
+    Job_Sector_closest = check_similarity_by_word(title, JobTitles)
+  )
+``` 
+
+
+
+```{r}
+library(writexl)
+# Save data to an Excel file
+write_xlsx(joblist_cleaned , "NewjobList_data.xlsx")
+```
