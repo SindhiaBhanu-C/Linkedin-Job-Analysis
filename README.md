@@ -1,4 +1,4 @@
-This Project is a continuation to the scraper fot Linkedin Job Postings, aimed to cleanup, normalize and analyze the data.
+This Project is a continuation to the scraper for Linkedin Job Postings, aimed to cleanup, normalize and analyze the data.
 
 ### Running
 
@@ -13,3 +13,4 @@ This Project is a continuation to the scraper fot Linkedin Job Postings, aimed t
 
 ## Tableau
 1. Using the cleaned up data tables we created dashboards for analysis that the user can make use of.
+2. Due to reasons the Tableau file is not made public. If interested feel free to contact me via linkedin at https://www.linkedin.com/in/sindhia-bhanu05/
